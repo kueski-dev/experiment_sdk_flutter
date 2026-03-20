@@ -49,7 +49,7 @@ class LocalStorage {
     return map;
   }
 
-  void load() async {
+  Future<void> load() async {
     await _ensurePrefix();
     final prefs = await SharedPreferences.getInstance();
 
@@ -57,15 +57,38 @@ class LocalStorage {
     Map<String, ExperimentVariant> newMap = {};
 
     for (String key in keys) {
-      dynamic value = prefs.get(key);
+      if (!key.startsWith(namespace)) continue;
 
-      newMap[key] = ExperimentVariant.fromMap(jsonDecode(value));
+      final value = prefs.get(key);
+
+      if (value is! String) {
+        if (kDebugMode) {
+          debugPrint(
+              '[LocalStorage] Skipping key "$key": value is not a String (${value.runtimeType})');
+        }
+        continue;
+      }
+
+      try {
+        final decoded = jsonDecode(value);
+        if (decoded is Map<String, dynamic>) {
+          newMap[key] = ExperimentVariant.fromMap(decoded);
+        } else if (kDebugMode) {
+          debugPrint(
+              '[LocalStorage] Skipping key "$key": decoded value is not a Map');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint(
+              '[LocalStorage] Skipping key "$key": failed to decode value — $e');
+        }
+      }
     }
 
     map = newMap;
   }
 
-  void save() async {
+  Future<void> save() async {
     await _ensurePrefix();
     final prefs = await SharedPreferences.getInstance();
 
